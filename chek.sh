@@ -20,8 +20,8 @@ else
     echo "⚠️ Файл проверки отсутствует. Запуск установки..."
 fi
 
-# Проверка наличия curl и tar
-command -v curl >/dev/null 2>&1 || { echo "❌ Ошибка: curl не установлен." >&2; exit 1; }
+# Проверка наличия wget и tar
+command -v wget >/dev/null 2>&1 || { echo "❌ Ошибка: wget не установлен." >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo "❌ Ошибка: tar не установлен." >&2; exit 1; }
 
 # Обработка архивов
@@ -42,7 +42,7 @@ for item in "${archive_list[@]}"; do
 
     # Скачиваем архив
     tempfile="/tmp/archive_$(date +%s).tar.gz"
-    curl -s -L "$url" -o "$tempfile"
+    wget -q -O "$tempfile" "$url"
 
     if [ $? -ne 0 ]; then
         echo "❌ Ошибка загрузки архива: $url"
