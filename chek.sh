@@ -1,12 +1,16 @@
 #!/bin/sh
 set -e
 
-# Переменные окружения
+# === Настройки по умолчанию ===
 CHECK_FILE="${CHECK_FILE:-/workspace/static/ver.txt}"
 EXPECTED_CONTENT="${EXPECTED_CONTENT:-copula-console-v0.2.13.tgz}"
-ARCHIVES="${ARCHIVES:-}"
 
-# Проверяем, была ли уже выполнена установка
+# Формат: "url1:dir1:strip1;url2:dir2:strip2;..."
+ARCHIVES="${ARCHIVES:-repo.int.sifox.ru/cpaas/web-ui/copula-console/copula-console-v0.2.13.tgz:/workspace/static/console/:3}"
+
+# ==============================
+# Проверка наличия файла метки
+# ==============================
 if [ -f "$CHECK_FILE" ]; then
   CURRENT_CONTENT=$(cat "$CHECK_FILE")
   if [ "$CURRENT_CONTENT" = "$EXPECTED_CONTENT" ]; then
@@ -19,7 +23,9 @@ else
   echo "⚠️ Файл проверки отсутствует. Запуск установки..."
 fi
 
-# Проверяем наличие необходимых утилит
+# ==============================
+# Проверка необходимых утилит
+# ==============================
 if ! command -v wget >/dev/null 2>&1; then
   echo "❌ Ошибка: wget не установлен." >&2
   exit 1
@@ -30,41 +36,42 @@ if ! command -v tar >/dev/null 2>&1; then
   exit 1
 fi
 
-# Обрабатываем список архивов
-IFS=' ' read -r -a archive_list <<< "$ARCHIVES"
-for item in "${archive_list[@]}"; do
-  IFS=':' read -r url dir <<< "$item"
+mkdir -p "$(dirname "$CHECK_FILE")"
 
-  if [ -z "$url" ] || [ -z "$dir" ]; then
+# ==============================
+# Обработка архивов
+# ==============================
+for item in $(echo "$ARCHIVES" | tr ';' ' '); do
+  url=$(echo "$item" | cut -d':' -f1)
+  dir=$(echo "$item" | cut -d':' -f2)
+  strip=$(echo "$item" | cut -d':' -f3)
+
+  if [ -z "$url" ] || [ -z "$dir" ] || [ -z "$strip" ]; then
     echo "❌ Некорректный формат архива: $item"
     continue
   fi
 
-  echo "📥 Загрузка архива: $url → $dir"
+  echo "📥 Загрузка архива: $url → $dir (strip: $strip)"
 
-  # Создаём целевую папку
   mkdir -p "$dir"
 
-  # Имя временного файла
   tempfile="/tmp/archive_$(date +%s).tar.gz"
-
-  # Скачиваем архив
   wget -q -O "$tempfile" "$url" || {
     echo "❌ Ошибка загрузки архива: $url"
     exit 1
   }
 
-  # Распаковываем архив
-  tar -xzf "$tempfile" -C "$dir" || {
+  tar -xzf "$tempfile" -C "$dir" --strip-components="$strip" || {
     echo "❌ Ошибка распаковки архива: $tempfile"
     exit 1
   }
 
-  # Удаляем временный файл
   rm -f "$tempfile"
 done
 
-# Создаём файл с меткой версии
+# ==============================
+# Запись метки завершения установки
+# ==============================
 echo "$EXPECTED_CONTENT" > "$CHECK_FILE"
 echo "✅ Установка успешно завершена. Метка создана: $CHECK_FILE"
 exit 0
