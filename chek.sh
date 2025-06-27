@@ -4,13 +4,13 @@ set -e  # Выход при ошибке
 
 # Переменные окружения
 CHECK_FILE="${CHECK_FILE:-/var/data/.setup_complete}"
-EXPECTED_CONTENT="${EXPECTED_CONTENT:-v1.0.0}"
+EXPECTED_CONTENT="${EXPECTED_CONTENT:-copula-console-v0.2.13.tgz}"
 ARCHIVES="${ARCHIVES:-}"  # Например: "http://a.tgz:/dir1 http://b.tgz:/dir2"
 
 # Проверяем, был ли уже выполнен процесс
 if [ -f "$CHECK_FILE" ]; then
     CURRENT_CONTENT=$(cat "$CHECK_FILE")
-    if [ "$CURRENT_CONTENT" == "$EXPECTED_CONTENT" ]; then
+    if [ "$CURRENT_CONTENT" = "$EXPECTED_CONTENT" ]; then
         echo "✅ Проверка успешна. Установка уже выполнена."
         exit 0
     else
@@ -21,42 +21,52 @@ else
 fi
 
 # Проверка наличия wget и tar
-command -v wget >/dev/null 2>&1 || { echo "❌ Ошибка: wget не установлен." >&2; exit 1; }
-command -v tar >/dev/null 2>&1 || { echo "❌ Ошибка: tar не установлен." >&2; exit 1; }
+if ! command -v wget >/dev/null 2>&1; then
+  echo "❌ Ошибка: wget не установлен." >&2
+  exit 1
+fi
+
+if ! command -v tar >/dev/null 2>&1; then
+  echo "❌ Ошибка: tar не установлен." >&2
+  exit 1
+fi
 
 # Обработка архивов
-IFS=' ' read -r -a archive_list <<< "$ARCHIVES"
+# Разделение строки на массив по пробелу
+i=0
+for item in $ARCHIVES; do
+  archive_list[i]="$item"
+  i=$((i+1))
+done
 
 for item in "${archive_list[@]}"; do
-    # Разделяем URL и директорию
-    IFS=':' read -r url dir <<< "$item"
-    
-    if [ -z "$url" ] || [ -z "$dir" ]; then
-        echo "❌ Некорректный формат архива: $item"
-        continue
-    fi
+  # Разделяем URL и директорию через cut
+  url=$(echo "$item" | cut -d':' -f1)
+  dir=$(echo "$item" | cut -d':' -f2)
 
-    echo "📥 Загрузка архива: $url → $dir"
+  if [ -z "$url" ] || [ -z "$dir" ]; then
+    echo "❌ Некорректный формат архива: $item"
+    continue
+  fi
 
-    mkdir -p "$dir"
+  echo "📥 Загрузка архива: $url → $dir"
 
-    # Скачиваем архив
-    tempfile="/tmp/archive_$(date +%s).tar.gz"
-    wget -q -O "$tempfile" "$url"
+  mkdir -p "$dir"
 
-    if [ $? -ne 0 ]; then
-        echo "❌ Ошибка загрузки архива: $url"
-        exit 1
-    fi
+  # Скачиваем архив
+  tempfile="/tmp/archive_$(date +%s).tar.gz"
+  wget -q -O "$tempfile" "$url" || {
+    echo "❌ Ошибка загрузки архива: $url"
+    exit 1
+  }
 
-    # Распаковываем
-    tar -xzf "$tempfile" -C "$dir"
-    if [ $? -ne 0 ]; then
-        echo "❌ Ошибка распаковки архива: $tempfile"
-        exit 1
-    fi
+  # Распаковываем
+  tar -xzf "$tempfile" -C "$dir" || {
+    echo "❌ Ошибка распаковки архива: $tempfile"
+    exit 1
+  }
 
-    rm -f "$tempfile"
+  rm -f "$tempfile"
 done
 
 # Создаём файл с меткой
