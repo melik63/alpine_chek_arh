@@ -27,13 +27,13 @@ fi
 # Проверка необходимых утилит
 # ==============================
 if ! command -v wget >/dev/null 2>&1; then
-  echo "❌ Ошибка: wget не установлен." >&2
-  exit 1
+  echo "⚙️ Устанавливаю wget..."
+  apk add --no-cache wget
 fi
 
 if ! command -v tar >/dev/null 2>&1; then
-  echo "❌ Ошибка: tar не установлен." >&2
-  exit 1
+  echo "⚙️ Устанавливаю tar..."
+  apk add --no-cache tar gzip
 fi
 
 mkdir -p "$(dirname "$CHECK_FILE")"
@@ -56,11 +56,14 @@ for item in $(echo "$ARCHIVES" | tr ';' ' '); do
   mkdir -p "$dir"
 
   tempfile="/tmp/archive_$(date +%s).tar.gz"
-  wget -q -O "$tempfile" "$url" || {
+
+  # Используем wget без -q, но перенаправляем вывод в /dev/null
+  wget -O "$tempfile" "$url" > /dev/null 2>&1 || {
     echo "❌ Ошибка загрузки архива: $url"
     exit 1
   }
 
+  # Распаковываем с помощью busybox tar
   tar -xzf "$tempfile" -C "$dir" --strip-components="$strip" || {
     echo "❌ Ошибка распаковки архива: $tempfile"
     exit 1
